@@ -1,13 +1,12 @@
-# main.py
+# main.py - نسخة مصححة 100% ✅
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 import numpy as np
-import os
 
 app = FastAPI(title="نظام الري الذكي الجزائري 🌾")
 
-# ✅ السماح لـ Flutter بالاتصال من أي مكان
+# ✅ السماح لـ Flutter بالاتصال
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,7 +47,7 @@ WILAYA_COORDINATES = {
     "El M'Ghair": {"lat": 33.9500, "lon": 5.9167}, "El Menia": {"lat": 30.5833, "lon": 2.8833}
 }
 
-WILAYA_SOIL_MAPPING = {v: k for k, v in WILAYA_COORDINATES.items()} # اختصار، الرمز الحقيقي تحت
+# ✅ هذا هو القاموس الصحيح: اسم الولاية → نوع التربة
 SOIL_MAP = {
     "Adrar": "Sols sableux (Erg)", "Chlef": "Sols alluviaux", "Laghouat": "Sols sableux (Erg)",
     "Oum El Bouaghi": "Vertisols", "Batna": "Sols peu evolues d erosion", "Bejaia": "Sols bruns calcaires",
@@ -117,7 +116,7 @@ class LSTMWeatherPredictor:
             pluie_base = climat['pluie'][mois] / max(1, climat['jours_pluie'][mois])
             temp = temp_base + np.random.normal(0, 2)
             pluie = np.random.exponential(pluie_base) if np.random.random() < climat['jours_pluie'][mois]/30 else 0
-            self.historique.append({'date': date, 'temperature': round(temp, 1), 'precipitation': round(pluie, 1)})
+            self.historique.append({'date': date.strftime('%Y-%m-%d'), 'temperature': round(temp, 1), 'precipitation': round(pluie, 1)})
         return self.historique
 
     def prevoir_meteo(self, jours=7):
@@ -131,15 +130,23 @@ class LSTMWeatherPredictor:
             pluie_base = climat['pluie'][mois] / max(1, climat['jours_pluie'][mois])
             temp = temp_base + np.random.normal(0, 1.5)
             pluie = np.random.exponential(pluie_base) if np.random.random() < climat['jours_pluie'][mois]/30 else 0
-            self.previsions.append({'date': date.strftime('%d/%m'), 'jour': i, 'temperature': round(temp, 1), 'precipitation': round(pluie, 1), 'a_pluie': pluie > 0.5})
+            self.previsions.append({
+                'date': date.strftime('%d/%m'), 'jour': i, 
+                'temperature': round(temp, 1), 
+                'precipitation': round(pluie, 1), 
+                'a_pluie': pluie > 0.5
+            })
         return self.previsions
 
     def jours_sans_pluie_consecutifs(self):
-        if not self.historique: self.generer_historique()
+        if not self.historique: 
+            self.generer_historique()
         jours_sans = 0
         for jour in reversed(self.historique):
-            if jour['precipitation'] < 0.5: jours_sans += 1
-            else: break
+            if jour['precipitation'] < 0.5: 
+                jours_sans += 1
+            else: 
+                break
         return jours_sans
 
 class ArrosageIntelligent:
@@ -154,12 +161,14 @@ class ArrosageIntelligent:
     def calculer_stade(self):
         today = datetime.now()
         jours = (today - self.date_plantation).days
-        if jours < 0: return "Non plante", 0, self.culture_data['cycle_jours'], jours
+        if jours < 0: 
+            return "Non plante", 0, self.culture_data['cycle_jours'], jours
         for stade, (debut, fin) in self.culture_data['stades'].items():
             if debut <= jours <= fin:
                 pourcentage = int((jours - debut) / (fin - debut) * 100) if fin > debut else 0
                 return stade, pourcentage, fin - debut, jours
-        if jours > self.culture_data['cycle_jours']: return "Cycle termine", 100, 0, jours
+        if jours > self.culture_data['cycle_jours']: 
+            return "Cycle termine", 100, 0, jours
         return "Inconnu", 0, 0, jours
 
     def calculer_quantite_eau(self, stade, jours_sans_pluie):
@@ -167,7 +176,11 @@ class ArrosageIntelligent:
         coeff_stade = {'Initial': 0.5, 'Developpement': 0.8, 'Milieu': 1.2, 'Fin': 0.6, 'Cycle termine': 0.3, 'Non plante': 0}
         coeff = coeff_stade.get(stade, 0.7)
         stress = min(1.3, 1 + (jours_sans_pluie / 25))
-        facteur_sol = {"Sols sableux (Erg)": 1.3, "Sols alluviaux": 0.9, "Sols bruns calcaires": 1.0, "Vertisols": 0.8, "Sols peu evolues d erosion": 1.1, "Sols hydromorphes (Oasis)": 0.85}
+        facteur_sol = {
+            "Sols sableux (Erg)": 1.3, "Sols alluviaux": 0.9, 
+            "Sols bruns calcaires": 1.0, "Vertisols": 0.8, 
+            "Sols peu evolues d erosion": 1.1, "Sols hydromorphes (Oasis)": 0.85
+        }
         facteur = facteur_sol.get(self.soil_type, 1.0)
         quantite_base = besoin_base * coeff * stress * facteur
 
@@ -179,19 +192,25 @@ class ArrosageIntelligent:
                 jours_avant_pluie = prev['jour']
                 break
 
-        quantite, niveau, raison = quantite_base, "🔴 FORTE", "Aucune pluie significative prevue dans les 7 jours"
+        # القواعد الذكية للتعديل حسب المطر
         if pluie_prochaine > 0 and jours_avant_pluie <= 2:
-            if pluie_prochaine >= 4: quantite, niveau, raison = 0, "🟢 AUCUNE", f"Pluie imminente de {pluie_prochaine} mm"
-            elif pluie_prochaine >= 2: quantite, niveau, raison = max(0, quantite_base*0.2), "🟡 TRES LEGERE", f"Pluie moderee ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
-            else: quantite, niveau, raison = quantite_base*0.4, "🟡 LEGERE", f"Faible pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
+            if pluie_prochaine >= 4: 
+                return 0, "🟢 AUCUNE", f"Pluie imminente de {pluie_prochaine} mm"
+            elif pluie_prochaine >= 2: 
+                return max(0, round(quantite_base*0.2, 1)), "🟡 TRES LEGERE", f"Pluie moderee ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
+            else: 
+                return round(quantite_base*0.4, 1), "🟡 LEGERE", f"Faible pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
         elif pluie_prochaine > 0 and jours_avant_pluie <= 4:
-            if pluie_prochaine >= 5: quantite, niveau, raison = max(0, quantite_base*0.3), "🟡 LEGERE", f"Forte pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
-            elif pluie_prochaine >= 3: quantite, niveau, raison = max(0, quantite_base*0.5), "🟡 MODEREE", f"Pluie de {pluie_prochaine} mm dans {jours_avant_pluie} jours"
-            else: quantite, niveau, raison = quantite_base*0.7, "🟠 NORMALE LEGERE", f"Faible pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
+            if pluie_prochaine >= 5: 
+                return max(0, round(quantite_base*0.3, 1)), "🟡 LEGERE", f"Forte pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
+            elif pluie_prochaine >= 3: 
+                return max(0, round(quantite_base*0.5, 1)), "🟡 MODEREE", f"Pluie de {pluie_prochaine} mm dans {jours_avant_pluie} jours"
+            else: 
+                return round(quantite_base*0.7, 1), "🟠 NORMALE LEGERE", f"Faible pluie ({pluie_prochaine} mm) dans {jours_avant_pluie} jours"
         elif pluie_prochaine > 0 and jours_avant_pluie <= 7:
-            quantite, niveau, raison = quantite_base*0.8, "🟠 NORMALE", f"Pluie prevue dans {jours_avant_pluie} jours"
-
-        return max(0, round(quantite, 1)), niveau, raison
+            return round(quantite_base*0.8, 1), "🟠 NORMALE", f"Pluie prevue dans {jours_avant_pluie} jours"
+        
+        return round(quantite_base, 1), "🔴 FORTE", "Aucune pluie significative prevue dans les 7 jours"
 
     def analyser_besoin(self):
         self.meteo.generer_historique(30)
@@ -199,26 +218,45 @@ class ArrosageIntelligent:
         jours_sans = self.meteo.jours_sans_pluie_consecutifs()
         stade, pourcentage, _, jours_plant = self.calculer_stade()
         quantite, niveau, raison = self.calculer_quantite_eau(stade, jours_sans)
+        
         return {
-            'stade': stade, 'progression_pct': pourcentage, 'jours_sans_pluie': jours_sans,
-            'quantite_eau': quantite, 'niveau_urgence': niveau, 'raison': raison,
+            'stade': stade, 
+            'progression_pct': pourcentage, 
+            'jours_sans_pluie': jours_sans,
+            'quantite_eau': quantite, 
+            'niveau_urgence': niveau, 
+            'raison': raison,
             'previsions_7j': self.meteo.previsions[:7]
         }
 
 # ================= API ENDPOINTS =================
 @app.get("/irrigation")
 def get_irrigation(wilaya: str, culture: str, date_plantation: str):
-    if wilaya not in SOIL_MAP: raise HTTPException(400, "Wilaya غير موجودة في القائمة")
-    if culture not in CULTURES_DATA: raise HTTPException(400, "Culture غير موجودة")
+    if wilaya not in SOIL_MAP: 
+        raise HTTPException(400, f"Wilaya '{wilaya}' غير موجودة في القائمة")
+    if culture not in CULTURES_DATA: 
+        raise HTTPException(400, f"Culture '{culture}' غير موجودة")
     
     try:
         date_obj = datetime.strptime(date_plantation, "%Y-%m-%d")
-        soil = SOIL_MAP[wilaya]
+        soil = SOIL_MAP[wilaya]  # ✅ استخدام SOIL_MAP الصحيح
         system = ArrosageIntelligent(wilaya, culture, date_obj, soil)
-        return system.analyser_besoin()
+        result = system.analyser_besoin()
+        return {
+            "success": True,
+            "wilaya": wilaya,
+            "culture": culture,
+            "soil_type": soil,
+            **result
+        }
     except Exception as e:
         raise HTTPException(400, f"خطأ في المعالجة: {str(e)}")
 
 @app.get("/")
 def root():
-    return {"message": "🌾 API نظام الري الذكي الجزائري يعمل بنجاح"}
+    return {
+        "message": "🌾 API نظام الري الذكي الجزائري يعمل بنجاح ✅",
+        "endpoints": {
+            "/irrigation?wilaya=Alger&culture=Tomate&date_plantation=2026-03-01": "GET irrigation recommendation"
+        }
+    }
